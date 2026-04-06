@@ -4,8 +4,25 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 const hasSession = ref(false)
+const deferredPrompt = ref<any>(null)
+const canInstall = ref(false)
+
+function handleBeforeInstallPrompt(e: Event) {
+  e.preventDefault()
+  deferredPrompt.value = e
+  canInstall.value = true
+}
+
+async function installPWA() {
+  if (!deferredPrompt.value) return
+  deferredPrompt.value.prompt()
+  const result = await deferredPrompt.value.userChoice
+  if (result.outcome === 'accepted') canInstall.value = false
+  deferredPrompt.value = null
+}
 
 onMounted(() => {
+  window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   const wsUrl = (route.query.ws as string) || null
   if (wsUrl) {
     hasSession.value = true
@@ -328,7 +345,16 @@ function initCapture(wsUrl: string) {
       </p>
     </div>
 
-    <router-link to="/" style="margin-top:24px;color:#6366f1;font-size:0.85rem;text-decoration:none;">
+    <!-- PWA install -->
+    <button
+      v-if="canInstall"
+      @click="installPWA"
+      style="margin-top:24px;width:100%;max-width:360px;background:#6366f1;color:white;border:none;padding:14px;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;"
+    >
+      Instalar Attestto en tu telefono
+    </button>
+
+    <router-link to="/" style="margin-top:16px;color:#6366f1;font-size:0.85rem;text-decoration:none;">
       ← Volver al inicio
     </router-link>
   </div>
