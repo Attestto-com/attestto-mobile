@@ -157,8 +157,9 @@ onBeforeUnmount(() => {
         </div>
       </button>
 
-      <!-- Credentials: hidden until we have VC display built
+      <!-- Credentials: enable when VC display is built -->
       <button
+        v-if="false"
         @click="router.push('/credentials')"
         class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-left hover:bg-white/10 transition-colors"
       >
@@ -174,7 +175,6 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </button>
-      -->
 
     <!-- Footer -->
     <p class="mt-auto pt-12 text-gray-600 text-xs">
