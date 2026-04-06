@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+// Detect mobile vs desktop
+const isMobile = computed(() => {
+  if (typeof window === 'undefined') return true
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    || window.innerWidth < 768
+})
 
 // PWA install prompt
 const deferredPrompt = ref<any>(null)
@@ -34,7 +41,80 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center min-h-screen px-6 py-12">
+  <!-- Desktop: landing page -->
+  <div v-if="!isMobile" class="flex flex-col items-center justify-center min-h-screen px-6 py-16">
+    <div class="max-w-2xl text-center">
+      <!-- Brand -->
+      <h1 class="text-6xl font-bold mb-4">
+        <span class="text-white">attest</span><span class="text-accent">to</span>
+      </h1>
+      <p class="text-gray-400 text-xl mb-12">
+        Identidad digital verificable
+      </p>
+
+      <!-- How it works -->
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-8 mb-8 text-left">
+        <h2 class="text-white font-semibold text-lg mb-6 text-center">Como funciona</h2>
+        <div class="space-y-6">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+              <span class="text-primary font-bold">1</span>
+            </div>
+            <div>
+              <h3 class="text-white font-semibold">Descarga la app de escritorio</h3>
+              <p class="text-gray-500 text-sm mt-1">La app de escritorio es tu estacion de verificacion. Gestiona tu boveda de credenciales y procesamiento de documentos.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+              <span class="text-primary font-bold">2</span>
+            </div>
+            <div>
+              <h3 class="text-white font-semibold">Escanea el codigo QR con tu telefono</h3>
+              <p class="text-gray-500 text-sm mt-1">La app de escritorio genera un QR. Escanealo con tu telefono para abrir esta pagina con la camara lista.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+              <span class="text-primary font-bold">3</span>
+            </div>
+            <div>
+              <h3 class="text-white font-semibold">Captura tu documento y selfie</h3>
+              <p class="text-gray-500 text-sm mt-1">Frente, reverso y selfie con prueba de vida. Todo se envia directo a tu escritorio por WiFi local — nada sale de tu red.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Privacy note -->
+      <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6 mb-8">
+        <div class="flex items-center gap-3 mb-2">
+          <svg class="w-5 h-5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <h3 class="text-emerald-400 font-semibold">Privacidad por diseno</h3>
+        </div>
+        <p class="text-gray-400 text-sm">
+          Tus imagenes y datos nunca salen de tu red local. La conexion es directa entre tu telefono y tu computadora — sin servidores, sin nube, sin terceros.
+        </p>
+      </div>
+
+      <!-- CTA -->
+      <a
+        href="https://attestto.com"
+        class="inline-block bg-primary hover:bg-primary/80 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
+      >
+        Conoce mas en attestto.com
+      </a>
+    </div>
+
+    <p class="mt-auto pt-12 text-gray-600 text-xs">
+      mobile.attestto.com
+    </p>
+  </div>
+
+  <!-- Mobile: app UI -->
+  <div v-else class="flex flex-col items-center justify-center min-h-screen px-6 py-12">
     <!-- Brand -->
     <div class="mb-4">
       <h1 class="text-5xl font-bold">
