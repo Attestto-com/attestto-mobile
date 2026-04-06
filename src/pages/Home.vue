@@ -175,6 +175,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </button>
+    </div>
 
     <!-- Footer -->
     <p class="mt-auto pt-12 text-gray-600 text-xs">
