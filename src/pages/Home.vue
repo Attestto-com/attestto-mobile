@@ -111,7 +111,7 @@ onBeforeUnmount(() => {
 
       <!-- CTA -->
       <a
-        href="https://attestto.com/mobile"
+        href="https://attestto.org/ark"
         class="inline-block bg-primary hover:bg-primary/80 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
       >
         Conoce mas en attestto.com
