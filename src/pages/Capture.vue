@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+const hasSession = ref(false)
 
 onMounted(() => {
   const wsUrl = (route.query.ws as string) || null
   if (wsUrl) {
+    hasSession.value = true
     initCapture(wsUrl)
   }
 })
@@ -282,7 +284,57 @@ function initCapture(wsUrl: string) {
 </script>
 
 <template>
-  <div class="capture-page">
+  <!-- No session: show explainer -->
+  <div v-if="!hasSession" class="capture-page" style="justify-content: center; align-items: center; padding: 2rem;">
+    <img src="/logo-icon.jpg" alt="Attestto" style="width:64px;height:64px;border-radius:12px;margin-bottom:24px;" />
+    <h1 style="font-size:2rem;font-weight:700;margin-bottom:8px;">
+      <span style="color:white;">attest</span><span style="color:#00D994;">to</span>
+    </h1>
+    <p style="color:#a0a0a0;font-size:0.95rem;margin-bottom:32px;text-align:center;">
+      Verificacion de identidad
+    </p>
+
+    <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:24px;max-width:360px;width:100%;text-align:center;">
+      <div style="font-size:2.5rem;margin-bottom:12px;">📱 ↔ 💻</div>
+      <h2 style="color:white;font-size:1.1rem;font-weight:600;margin-bottom:8px;">Conecta con tu escritorio</h2>
+      <p style="color:#a0a0a0;font-size:0.85rem;line-height:1.5;margin-bottom:16px;">
+        Para verificar tu identidad, abre la app de escritorio Attestto y escanea el codigo QR que aparece en pantalla.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:12px;text-align:left;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="color:#6366f1;font-weight:700;font-size:0.85rem;">1</span>
+          </div>
+          <span style="color:#d1d5db;font-size:0.85rem;">Abre Attestto en tu computadora</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="color:#6366f1;font-weight:700;font-size:0.85rem;">2</span>
+          </div>
+          <span style="color:#d1d5db;font-size:0.85rem;">Selecciona "Verificar identidad"</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:32px;height:32px;border-radius:8px;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span style="color:#6366f1;font-weight:700;font-size:0.85rem;">3</span>
+          </div>
+          <span style="color:#d1d5db;font-size:0.85rem;">Escanea el QR con este telefono</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;padding:16px;border:1px solid rgba(34,197,94,0.2);border-radius:12px;background:rgba(34,197,94,0.05);max-width:360px;width:100%;text-align:center;">
+      <p style="color:#a0a0a0;font-size:0.75rem;">
+        🔒 Tus fotos se envian directo a tu computadora por WiFi local. Nada sale de tu red.
+      </p>
+    </div>
+
+    <router-link to="/" style="margin-top:24px;color:#6366f1;font-size:0.85rem;text-decoration:none;">
+      ← Volver al inicio
+    </router-link>
+  </div>
+
+  <!-- Active session: capture UI -->
+  <div v-else class="capture-page">
     <!-- Brand header -->
     <div class="brand">
       <span class="brand-name"><span class="brand-attest">attest</span><span class="brand-to">to</span></span>
