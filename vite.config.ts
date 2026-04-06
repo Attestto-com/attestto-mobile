@@ -9,11 +9,11 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icons/*.png'],
+      includeAssets: ['favicon.jpg', 'logo-icon.jpg', 'icons/*.png'],
       manifest: {
-        name: 'Attestto Wallet',
+        name: 'Attestto — Identidad Digital Verificable',
         short_name: 'Attestto',
-        description: 'Tu billetera de identidad digital',
+        description: 'Tu billetera de identidad digital. Verifica tu identidad y almacena credenciales verificables.',
         theme_color: '#1a1a2e',
         background_color: '#1a1a2e',
         display: 'standalone',
