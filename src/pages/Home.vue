@@ -11,6 +11,10 @@ const isMobile = computed(() => {
     || window.innerWidth < 768
 })
 
+// Detect if running as installed PWA
+const isInstalled = ref(false)
+const isIOS = ref(false)
+
 // PWA install prompt
 const deferredPrompt = ref<any>(null)
 const canInstall = ref(false)
@@ -33,6 +37,10 @@ async function installPWA() {
 
 onMounted(() => {
   window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  // Check if already running as installed PWA
+  isInstalled.value = window.matchMedia('(display-mode: standalone)').matches
+    || (window.navigator as any).standalone === true
+  isIOS.value = /iPhone|iPad|iPod/i.test(navigator.userAgent)
 })
 
 onBeforeUnmount(() => {
@@ -129,17 +137,77 @@ onBeforeUnmount(() => {
       Tu billetera de identidad digital
     </p>
 
-    <!-- Install PWA button -->
-    <button
-      v-if="canInstall"
-      @click="installPWA"
-      class="w-full max-w-xs bg-primary hover:bg-primary/80 text-white font-semibold py-3 px-6 rounded-xl mb-8 transition-colors"
-    >
-      Instalar Attestto
-    </button>
+    <!-- State 1: Not installed — install CTA -->
+    <div v-if="!isInstalled" class="w-full max-w-sm">
+      <!-- Install button (Android/Chrome) -->
+      <button
+        v-if="canInstall"
+        @click="installPWA"
+        class="w-full bg-primary hover:bg-primary/80 text-white font-semibold py-4 px-6 rounded-xl mb-6 transition-colors text-lg"
+      >
+        Instalar Attestto
+      </button>
 
-    <!-- Action cards -->
-    <div class="w-full max-w-sm space-y-4">
+      <!-- iOS instructions (no beforeinstallprompt on Safari) -->
+      <div v-else-if="isIOS" class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6 text-center">
+        <p class="text-white font-semibold mb-3">Instalar en tu iPhone</p>
+        <div class="space-y-3 text-left">
+          <div class="flex items-center gap-3">
+            <span class="text-primary font-bold">1</span>
+            <span class="text-gray-300 text-sm">Toca el boton compartir
+              <svg class="w-4 h-4 inline-block ml-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+            </span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-primary font-bold">2</span>
+            <span class="text-gray-300 text-sm">Selecciona "Agregar a pantalla de inicio"</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-primary font-bold">3</span>
+            <span class="text-gray-300 text-sm">Toca "Agregar"</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fallback: already installed or unsupported -->
+      <div v-else class="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6 text-center">
+        <p class="text-gray-400 text-sm">
+          Agrega esta pagina a tu pantalla de inicio para usar Attestto como app.
+        </p>
+      </div>
+
+      <!-- Why install -->
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            </svg>
+          </div>
+          <span class="text-gray-300 text-sm">Captura documentos con la camara de tu telefono</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <span class="text-gray-300 text-sm">Tus datos nunca salen de tu red local</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <span class="text-gray-300 text-sm">Credenciales verificables en tu bolsillo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- State 2: Installed — show app features -->
+    <div v-else class="w-full max-w-sm space-y-4">
+      <!-- Verify identity (via desktop QR) -->
       <button
         @click="router.push('/capture')"
         class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-left hover:bg-white/10 transition-colors"
@@ -152,29 +220,40 @@ onBeforeUnmount(() => {
           </div>
           <div>
             <h3 class="text-white font-semibold text-lg">Verificar identidad</h3>
-            <p class="text-gray-500 text-sm">Captura y verifica tu identidad</p>
+            <p class="text-gray-500 text-sm">Escanea el QR desde el escritorio</p>
           </div>
         </div>
       </button>
 
-      <!-- Credentials: enable when VC display is built -->
-      <button
-        v-if="false"
-        @click="router.push('/credentials')"
-        class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-left hover:bg-white/10 transition-colors"
-      >
+      <!-- Coming soon: standalone mobile verification -->
+      <div class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 opacity-60">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
             <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-white font-semibold text-lg">Verificacion movil</h3>
+            <p class="text-gray-500 text-sm">Proximamente — verifica sin escritorio</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coming soon: credentials -->
+      <div class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 opacity-60">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
             </svg>
           </div>
           <div>
             <h3 class="text-white font-semibold text-lg">Mis credenciales</h3>
-            <p class="text-gray-500 text-sm">Ver credenciales almacenadas</p>
+            <p class="text-gray-500 text-sm">Proximamente — tu billetera digital</p>
           </div>
         </div>
-      </button>
+      </div>
     </div>
 
     <!-- Footer -->
