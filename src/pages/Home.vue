@@ -44,6 +44,8 @@ onBeforeUnmount(() => {
   <!-- Desktop: landing page -->
   <div v-if="!isMobile" class="flex flex-col items-center justify-center min-h-screen px-6 py-16">
     <div class="max-w-2xl text-center">
+      <!-- Logo -->
+      <img src="/logo-icon.jpg" alt="Attestto" class="w-20 h-20 rounded-2xl mx-auto mb-6" />
       <!-- Brand -->
       <h1 class="text-6xl font-bold mb-4">
         <span class="text-white">attest</span><span class="text-accent">to</span>
@@ -115,7 +117,8 @@ onBeforeUnmount(() => {
 
   <!-- Mobile: app UI -->
   <div v-else class="flex flex-col items-center justify-center min-h-screen px-6 py-12">
-    <!-- Brand -->
+    <!-- Logo + Brand -->
+    <img src="/logo-icon.jpg" alt="Attestto" class="w-16 h-16 rounded-xl mb-4" />
     <div class="mb-4">
       <h1 class="text-5xl font-bold">
         <span class="text-white">attest</span><span class="text-accent">to</span>
