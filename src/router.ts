@@ -2,11 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from './pages/Home.vue'
 import Capture from './pages/Capture.vue'
 import Credentials from './pages/Credentials.vue'
+import Present from './pages/Present.vue'
 
 const routes = [
   { path: '/', component: Home },
   { path: '/capture', component: Capture },
   { path: '/credentials', component: Credentials },
+  { path: '/present', component: Present },
 ]
 
 export const router = createRouter({

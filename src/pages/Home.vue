@@ -240,8 +240,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Coming soon: credentials -->
-      <div class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 opacity-60">
+      <!-- Credentials -->
+      <button
+        @click="router.push('/credentials')"
+        class="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-left hover:bg-white/10 transition-colors"
+      >
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
             <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -250,10 +253,10 @@ onBeforeUnmount(() => {
           </div>
           <div>
             <h3 class="text-white font-semibold text-lg">Mis credenciales</h3>
-            <p class="text-gray-500 text-sm">Proximamente — tu billetera digital</p>
+            <p class="text-gray-500 text-sm">Tu billetera de credenciales verificables</p>
           </div>
         </div>
-      </div>
+      </button>
     </div>
 
     <!-- Footer -->

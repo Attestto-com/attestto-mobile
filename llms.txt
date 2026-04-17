@@ -1,0 +1,99 @@
+# attestto-mobile
+
+> Camera companion PWA for the Attestto desktop app. Your phone becomes the document and selfie capture device. Images travel over local WiFi via WebSocket — no server, no cloud, no PII transmitted.
+
+Deployed at [mobile.attestto.com](https://mobile.attestto.com). Part of the [Attestto Open](https://attestto.org) ecosystem.
+
+## What it does
+
+The desktop app (`attestto-desktop`) needs high-quality photos of a user's identity document and a selfie for biometric liveness. A phone camera is better for this than a laptop webcam.
+
+Flow:
+```
+Desktop (Electron)              Phone (this PWA)
+┌──────────────────┐            ┌──────────────────────┐
+│ Shows QR code    │◄── WiFi ──►│ 1. Front of document │
+│ Receives images  │            │ 2. Back of document  │
+│ Runs OCR         │            │ 3. Selfie + liveness │
+│ Validates Padrón │            │    (blink detection) │
+│ Stores credential│            │ 4. Done → install PWA│
+└──────────────────┘            └──────────────────────┘
+```
+
+1. Desktop starts a local WebSocket server and displays a QR code
+2. User scans QR on their phone — opens this PWA with the WebSocket URL
+3. PWA guides through 3 capture steps (document front, back, selfie)
+4. Each image is sent as base64 JPEG over WebSocket to the desktop
+5. Desktop acknowledges each step; PWA advances
+
+All processing (OCR, liveness, Padrón validation, credential storage) happens on the desktop. The phone is a capture-only device.
+
+## Privacy
+
+Images never leave your local network. The phone sends directly to your own desktop over WebSocket — there is no intermediate server, no cloud upload, no PII transmitted outside the local network.
+
+## Stack
+
+- Vue 3 + TypeScript
+- Vite + vite-plugin-pwa (installable PWA)
+- Tailwind CSS
+- WebSocket (`ws://` connection to desktop capture server)
+- `getUserMedia` (camera access)
+- GitHub Pages deployment (HTTPS required for `getUserMedia`)
+
+## Capture flow
+
+**Step 1 — Document front**
+Card frame overlay. User aligns document within frame. Tap to capture or use auto-capture.
+
+**Step 2 — Document back**
+Same card frame overlay.
+
+**Step 3 — Selfie + passive liveness**
+Face oval overlay. Blink detection for passive liveness check.
+
+If camera access is blocked, file input fallback is available at each step.
+
+After all 3 steps: success screen + prompt to install PWA to home screen.
+
+## How the WebSocket connection works
+
+The QR code URL format:
+```
+https://mobile.attestto.com/capture?ws=ws://192.168.1.X:PORT/ws/SESSION_ID
+```
+
+The PWA extracts `ws=` from the query string and connects immediately. No user action needed beyond scanning the QR.
+
+Message protocol (JSON over WebSocket):
+```
+Phone → Desktop:  { type: 'image', step: 'front' | 'back' | 'selfie', data: '<base64 JPEG>' }
+Desktop → Phone:  { type: 'ack', step: 'front' | 'back' | 'selfie' }
+Desktop → Phone:  { type: 'complete' }
+Desktop → Phone:  { type: 'error', message: string }
+```
+
+## Development
+
+```bash
+pnpm install
+pnpm dev     # starts on https://localhost:5173 (HTTPS needed for getUserMedia in dev)
+pnpm build
+```
+
+## Deployment
+
+Deployed automatically to GitHub Pages on push to `main` via `.github/workflows/deploy.yml`. Custom domain: `mobile.attestto.com` (CNAME).
+
+HTTPS is provided by GitHub Pages — required for `getUserMedia` to work without cert warnings on phones.
+
+## Related repos
+
+| Repo | Purpose |
+|---|---|
+| `attestto-desktop` | The desktop app that receives images from this PWA |
+| `attestto-app` | Mobile-first PWA wallet (everyday credential use — separate from this) |
+
+## License
+
+Apache 2.0 — [Attestto Open](https://attestto.org)
