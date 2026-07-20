@@ -3,7 +3,7 @@
 #          fly deploy
 # The relay is stateless; a single small machine is plenty to start.
 app = "attestto-present-relay"
-primary_region = "mia"
+primary_region = "dfw"
 
 [build]
   dockerfile = "Dockerfile"
