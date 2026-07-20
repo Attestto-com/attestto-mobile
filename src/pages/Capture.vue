@@ -2,9 +2,11 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { loadDocScanner, detectQuad, quadIsCardLike, type Quad } from '../lib/docScanner'
+import { isInternalWsUrl } from '../lib/captureSecurity'
 
 const route = useRoute()
 const hasSession = ref(false)
+const securityBlocked = ref(false)
 const deferredPrompt = ref<any>(null)
 const canInstall = ref(false)
 
@@ -25,9 +27,18 @@ async function installPWA() {
 onMounted(() => {
   window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   const wsUrl = (route.query.ws as string) || null
-  if (wsUrl) {
+  // ?demo=1 runs the full camera + auto-detect flow locally (laptop webcam or
+  // phone) with no desktop pairing — for previewing/tuning the capture UX.
+  const demo = route.query.demo != null
+  // Security guard: refuse to stream to any non-internal destination. Blocks the
+  // crafted-link exfiltration attack (see src/lib/captureSecurity.ts).
+  if (wsUrl && !demo && !isInternalWsUrl(wsUrl)) {
+    securityBlocked.value = true
+    return
+  }
+  if (wsUrl || demo) {
     hasSession.value = true
-    initCapture(wsUrl)
+    initCapture(wsUrl, demo)
   }
 })
 
@@ -39,7 +50,7 @@ onBeforeUnmount(() => {
   }
 })
 
-function initCapture(wsUrl: string) {
+function initCapture(wsUrl: string | null, demo = false) {
   // All capture logic runs in vanilla JS on the mounted DOM
   // This keeps the port 1:1 with capture-server.ts embedded HTML
   const w = window as any
@@ -374,6 +385,19 @@ function initCapture(wsUrl: string) {
 
   function confirmCapture() {
     const side = previewStep
+    if (demo) {
+      // Advance the flow locally without a desktop round-trip.
+      const nextOf: Record<string, string> = { front: 'back', back: 'selfie', selfie: 'done' }
+      const nx = nextOf[side]
+      if (nx === 'done') {
+        Object.keys(streams).forEach(closeCamera)
+        show('done'); updateTabs('done')
+        const pbar = $('pbar'); if (pbar) pbar.style.width = '100%'
+      } else {
+        currentStep = nx; show(nx); openCamera(nx)
+      }
+      return
+    }
     const payload: any = { type: side + '-captured', image: captures[side] }
     if (side === 'selfie') {
       payload.liveness = { faceDetected: faceOk, blinkCount, durationMs: Date.now() - livenessStart }
@@ -394,6 +418,15 @@ function initCapture(wsUrl: string) {
 
   // Expose to onclick handlers in template
   w.__capture = { captureDoc, captureSelfie, confirmCapture, retakeCapture }
+
+  // Demo mode: no desktop, drive the flow locally starting at the front camera.
+  if (demo || !wsUrl) {
+    setStatus('Modo demostracion', 'ok')
+    currentStep = 'front'
+    show('front')
+    openCamera('front')
+    return
+  }
 
   // Connect WebSocket
   ws = new WebSocket(wsUrl)
@@ -417,8 +450,23 @@ function initCapture(wsUrl: string) {
 </script>
 
 <template>
+  <!-- Security: destination is not an internal LAN address — refuse to connect -->
+  <div v-if="securityBlocked" class="capture-page" style="justify-content: center; align-items: center; padding: 2rem;">
+    <div style="font-size:2.5rem;margin-bottom:16px;">🛑</div>
+    <h1 style="font-size:1.3rem;font-weight:700;margin-bottom:12px;text-align:center;color:#ef4444;">Enlace no seguro</h1>
+    <p style="color:#a0a0a0;font-size:0.9rem;line-height:1.6;max-width:340px;text-align:center;">
+      Este enlace intenta enviar tus documentos a un destino fuera de tu red local. Por seguridad, Attestto solo transmite a tu propia computadora en tu red WiFi.
+    </p>
+    <p style="color:#6b7280;font-size:0.8rem;margin-top:16px;text-align:center;max-width:340px;">
+      Abre la app de escritorio Attestto y escanea el codigo QR directamente desde su pantalla.
+    </p>
+    <router-link to="/" style="margin-top:24px;color:#6366f1;font-size:0.85rem;text-decoration:none;">
+      ← Volver al inicio
+    </router-link>
+  </div>
+
   <!-- No session: show explainer -->
-  <div v-if="!hasSession" class="capture-page" style="justify-content: center; align-items: center; padding: 2rem;">
+  <div v-else-if="!hasSession" class="capture-page" style="justify-content: center; align-items: center; padding: 2rem;">
     <img src="/logo-icon.jpg" alt="Attestto" style="width:64px;height:64px;border-radius:12px;margin-bottom:24px;" />
     <h1 style="font-size:2rem;font-weight:700;margin-bottom:8px;">
       <span style="color:white;">attest</span><span style="color:#00D994;">to</span>
