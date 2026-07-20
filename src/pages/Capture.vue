@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
+import { loadDocScanner, detectQuad, quadIsCardLike, type Quad } from '../lib/docScanner'
 
 const route = useRoute()
 const hasSession = ref(false)
@@ -53,6 +54,9 @@ function initCapture(wsUrl: string) {
   let previewStep = ''
   let livenessStart = 0, blinkCount = 0, faceOk = false
   let lastEyeB: number | null = null, blinkCD = false, dLoop: number | null = null
+  // Document auto-detect (jscanify/OpenCV) — one side active at a time.
+  let detectLoop: number | null = null, scanner: any = null
+  let scannerLoading = false
 
   function setStatus(t: string, c?: string) {
     const el = $('status')
@@ -100,9 +104,10 @@ function initCapture(wsUrl: string) {
         startLiveness()
       } else {
         const g = $('g-' + side)
-        if (g) { g.textContent = 'Documento detectado'; g.className = 'guidance guidance--stable' }
+        if (g) { g.textContent = 'Buscando documento...'; g.className = 'guidance guidance--searching' }
         const hint = $('hint-' + side)
         if (hint) hint.style.display = ''
+        startDocDetect(side)
       }
     } catch {
       showFileInput(side)
@@ -161,7 +166,118 @@ function initCapture(wsUrl: string) {
 
   function closeCamera(side: string) {
     if (dLoop) { cancelAnimationFrame(dLoop); dLoop = null }
+    if (detectLoop) { cancelAnimationFrame(detectLoop); detectLoop = null }
+    const ov = $('ov-' + side) as HTMLCanvasElement | null
+    if (ov) { const c = ov.getContext('2d'); c?.clearRect(0, 0, ov.width, ov.height) }
     if (streams[side]) { streams[side].getTracks().forEach(t => t.stop()); delete streams[side] }
+  }
+
+  // Auto-detect the document in the live stream (jscanify/OpenCV), draw corner
+  // brackets, and auto-capture once the card is held steady and well-framed.
+  // Mirrors startLiveness(): a rAF loop over the active <video>, throttled so
+  // OpenCV runs a few times a second rather than every frame. The manual capture
+  // button stays enabled the whole time as a fallback.
+  async function startDocDetect(side: string) {
+    if (!scanner && !scannerLoading) {
+      scannerLoading = true
+      scanner = await loadDocScanner()  // null if OpenCV can't load → manual only
+      scannerLoading = false
+    }
+    if (!scanner || !streams[side]) return  // camera may have advanced already
+
+    const vid = $('vid-' + side) as HTMLVideoElement
+    const ov = $('ov-' + side) as HTMLCanvasElement
+    const octx = ov?.getContext('2d')
+    const work = document.createElement('canvas')
+    const wctx = work.getContext('2d')!
+    const TARGET_W = 480
+    let lastDetect = 0
+    let stable = 0
+    let captured = false
+    const NEED_STABLE = 6            // ~consecutive good detects before auto-capture
+    let prevCenters: Record<string, { x: number; y: number }> = {}
+
+    function corners(q: Quad) {
+      return [q.topLeftCorner!, q.topRightCorner!, q.bottomRightCorner!, q.bottomLeftCorner!]
+    }
+    function jitter(q: Quad, scale: number) {
+      // average corner movement between detects, in work-canvas px
+      const names = ['topLeftCorner', 'topRightCorner', 'bottomRightCorner', 'bottomLeftCorner'] as const
+      let sum = 0, n = 0
+      for (const k of names) {
+        const c = (q as any)[k]
+        const p = prevCenters[k]
+        if (c && p) { sum += Math.hypot(c.x * scale - p.x, c.y * scale - p.y); n++ }
+        if (c) prevCenters[k] = { x: c.x * scale, y: c.y * scale }
+      }
+      return n ? sum / n : 999
+    }
+
+    function drawBrackets(q: Quad, inv: number, color: string) {
+      if (!octx) return
+      octx.clearRect(0, 0, ov.width, ov.height)
+      const pts = corners(q).map(c => ({ x: c.x * inv, y: c.y * inv }))
+      octx.strokeStyle = color
+      octx.lineWidth = Math.max(4, ov.width * 0.008)
+      octx.lineJoin = 'round'
+      const len = ov.width * 0.06
+      // corner L-brackets
+      const pairs = [[0, 1, 3], [1, 0, 2], [2, 1, 3], [3, 0, 2]] // [corner, neighborA, neighborB]
+      for (const [ci, a, b] of pairs) {
+        const p = pts[ci], na = pts[a], nb = pts[b]
+        const toward = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+          const d = Math.hypot(to.x - from.x, to.y - from.y) || 1
+          return { x: from.x + (to.x - from.x) / d * len, y: from.y + (to.y - from.y) / d * len }
+        }
+        const e1 = toward(p, na), e2 = toward(p, nb)
+        octx.beginPath()
+        octx.moveTo(e1.x, e1.y); octx.lineTo(p.x, p.y); octx.lineTo(e2.x, e2.y)
+        octx.stroke()
+      }
+    }
+
+    function loop(ts: number) {
+      if (captured || !streams[side]) return
+      if (vid.readyState < 2) { detectLoop = requestAnimationFrame(loop); return }
+      // size overlay to full video frame so its `object-fit:cover` aligns with <video>
+      if (ov.width !== vid.videoWidth) { ov.width = vid.videoWidth; ov.height = vid.videoHeight }
+
+      if (ts - lastDetect > 140) {
+        lastDetect = ts
+        const s = TARGET_W / vid.videoWidth
+        work.width = Math.round(vid.videoWidth * s)
+        work.height = Math.round(vid.videoHeight * s)
+        wctx.drawImage(vid, 0, 0, work.width, work.height)
+        const q = detectQuad(scanner, work)
+        const good = q && quadIsCardLike(q)
+        if (good) {
+          const inv = vid.videoWidth / work.width
+          const moved = jitter(q!, 1)
+          const steady = moved < 10
+          stable = steady ? stable + 1 : Math.max(0, stable - 1)
+          const ready = stable >= NEED_STABLE
+          drawBrackets(q!, inv, ready ? '#22c55e' : '#3b82f6')
+          const g = $('g-' + side)
+          if (g) {
+            if (ready) { g.textContent = 'Capturando...'; g.className = 'guidance guidance--stable' }
+            else if (steady) { g.textContent = 'Manten firme'; g.className = 'guidance guidance--detected' }
+            else { g.textContent = 'Documento detectado'; g.className = 'guidance guidance--detecting' }
+          }
+          if (ready) {
+            captured = true
+            captureDoc(side)
+            return
+          }
+        } else {
+          stable = 0; prevCenters = {}
+          if (octx) octx.clearRect(0, 0, ov.width, ov.height)
+          const g = $('g-' + side)
+          if (g) { g.textContent = 'Centra tu cedula en el marco'; g.className = 'guidance guidance--searching' }
+        }
+      }
+      detectLoop = requestAnimationFrame(loop)
+    }
+    detectLoop = requestAnimationFrame(loop)
   }
 
   function captureDoc(side: string) {
@@ -398,13 +514,14 @@ function initCapture(wsUrl: string) {
         <div class="step-sub">Centra tu cedula dentro del marco</div>
         <div class="viewfinder viewfinder--landscape">
           <video id="vid-front" autoplay playsinline muted></video>
+          <canvas class="detect-overlay" id="ov-front"></canvas>
           <div class="card-frame">
             <div class="corner corner--tl"></div><div class="corner corner--tr"></div>
             <div class="corner corner--bl"></div><div class="corner corner--br"></div>
           </div>
           <div class="guidance guidance--searching" id="g-front">Iniciando camara...</div>
           <div class="quality-badge hidden" id="q-front"></div>
-          <div class="tap-hint" id="hint-front">Toca el boton para capturar</div>
+          <div class="tap-hint" id="hint-front">Se captura sola, o toca el boton</div>
         </div>
         <div class="capture-btn-row">
           <button class="capture-btn" id="btn-front" onclick="window.__capture.captureDoc('front')" disabled><div class="inner"></div></button>
@@ -417,13 +534,14 @@ function initCapture(wsUrl: string) {
         <div class="step-sub">Asegurate que el MRZ se vea claro</div>
         <div class="viewfinder viewfinder--landscape">
           <video id="vid-back" autoplay playsinline muted></video>
+          <canvas class="detect-overlay" id="ov-back"></canvas>
           <div class="card-frame">
             <div class="corner corner--tl"></div><div class="corner corner--tr"></div>
             <div class="corner corner--bl"></div><div class="corner corner--br"></div>
           </div>
           <div class="guidance guidance--searching" id="g-back">Iniciando camara...</div>
           <div class="quality-badge hidden" id="q-back"></div>
-          <div class="tap-hint" id="hint-back">Toca el boton para capturar</div>
+          <div class="tap-hint" id="hint-back">Se captura sola, o toca el boton</div>
         </div>
         <div class="capture-btn-row">
           <button class="capture-btn" id="btn-back" onclick="window.__capture.captureDoc('back')" disabled><div class="inner"></div></button>
@@ -507,6 +625,9 @@ function initCapture(wsUrl: string) {
 .viewfinder--portrait { aspect-ratio: 3/4; }
 .viewfinder video { width: 100%; height: 100%; object-fit: cover; }
 .viewfinder video.mirror { transform: scaleX(-1); }
+/* Overlay canvas shares the video's box + object-fit:cover so the detected quad,
+   drawn in video-pixel coordinates, lines up with the cropped displayed frame. */
+.detect-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; pointer-events: none; }
 .card-frame { position: absolute; top: 12%; left: 5%; right: 5%; bottom: 12%; border: 2px solid rgba(255,255,255,0.15); border-radius: 12px; pointer-events: none; }
 .card-frame .corner { position: absolute; width: 20px; height: 20px; border-color: #22c55e; border-style: solid; }
 .corner--tl { top: -2px; left: -2px; border-width: 4px 0 0 4px; border-radius: 8px 0 0 0; }

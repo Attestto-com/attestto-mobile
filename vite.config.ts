@@ -40,6 +40,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // OpenCV.js (8.6MB) is lazy-loaded on demand during a capture session,
+        // never precached. Excluding it keeps the SW install small and avoids
+        // the >2MB precache warning.
+        globIgnores: ['**/vendor/opencv.js'],
       },
     }),
   ],
