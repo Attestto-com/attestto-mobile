@@ -1,0 +1,17 @@
+{
+  "name": "attestto-present-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Blind WebSocket byte-pipe that rendezvous a desktop holder and a phone verifier for E2E-sealed credential presentation.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
