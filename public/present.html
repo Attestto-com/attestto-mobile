@@ -50,8 +50,28 @@
     const DESKTOP_PK_HEX = Q.get('pk') || '';
     let ws, sharedKey = null, challengeNonce = '';
 
+    // Debug overlay: append ?debug=1 to the QR URL (or open the page manually
+    // with it) to dump every WS event + any thrown error on-screen. Off by
+    // default — no cable/Web Inspector needed to trace a stuck handshake.
+    const DEBUG = Q.has('debug');
+    let dbgBox = null;
+    function dbg(...a){
+      if(!DEBUG) return;
+      if(!dbgBox){
+        dbgBox=document.createElement('pre');
+        dbgBox.style.cssText='position:fixed;left:0;right:0;bottom:0;max-height:45vh;overflow:auto;margin:0;padding:8px;background:#000;color:#0f0;font:11px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-all;z-index:9999;border-top:1px solid #0f0';
+        document.body.appendChild(dbgBox);
+      }
+      const t=new Date().toISOString().slice(11,23);
+      dbgBox.textContent+='['+t+'] '+a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')+'\n';
+      dbgBox.scrollTop=dbgBox.scrollHeight;
+    }
+    window.addEventListener('error',e=>dbg('JS ERROR:',e.message,'@',(e.filename||'')+':'+e.lineno));
+    window.addEventListener('unhandledrejection',e=>dbg('PROMISE REJECT:',String(e.reason)));
+    dbg('boot','nacl='+(typeof nacl!=='undefined'?'loaded':'MISSING'),'relay='+RELAY,'sid='+SID,'pk='+(DESKTOP_PK_HEX?DESKTOP_PK_HEX.slice(0,8)+'…':'MISSING'));
+
     const $ = id => document.getElementById(id);
-    const setStatus = t => { const s = $('status'); if (s) s.textContent = t; };
+    const setStatus = t => { const s = $('status'); if (s) s.textContent = t; dbg('status:',t); };
     const fail = t => { $('card').innerHTML = '<div class="result-icon bad">!</div><h2>Error</h2><div class="status">' + esc(t) + '</div>'; };
 
     function hexToBytes(h){const a=new Uint8Array(h.length/2);for(let i=0;i<h.length;i+=2)a[i/2]=parseInt(h.substr(i,2),16);return a}
@@ -110,18 +130,22 @@
     function startExchange(){
       // The desktop pubkey came from the scanned QR (?pk=). Derive the shared key
       // and announce ourselves; no server 'connected' message needed.
+      if(typeof nacl==='undefined'){ dbg('FATAL: nacl not loaded (SRI/CDN blocked)'); fail('No se pudo cargar el módulo de cifrado.'); return; }
       const kp=nacl.box.keyPair();
       sharedKey=nacl.box.before(hexToBytes(DESKTOP_PK_HEX),kp.secretKey);
+      dbg('sent key-exchange');
       ws.send(JSON.stringify({type:'key-exchange',publicKey:bytesToHex(kp.publicKey)}));
     }
 
     function connect(){
       if(!RELAY||!SID||!DESKTOP_PK_HEX){ fail('Enlace incompleto. Escaneá el código QR de nuevo.'); return; }
       const url = RELAY.replace(/\/$/,'') + '/r/' + encodeURIComponent(SID);
+      dbg('WS connecting →',url);
       ws=new WebSocket(url);
-      ws.onopen=()=>setStatus('Esperando al escritorio…');
+      ws.onopen=()=>{dbg('WS open');setStatus('Esperando al escritorio…')};
       ws.onmessage=async (e)=>{
         let msg;try{msg=JSON.parse(e.data)}catch{return}
+        dbg('WS recv:',msg.type);
         if(msg.type==='peer-joined'){
           setStatus('Estableciendo canal cifrado…');
           startExchange();
@@ -131,15 +155,16 @@
           sendEncrypted({type:'challenge',nonce:challengeNonce});
         } else if(msg.type==='encrypted'&&sharedKey){
           const pt=nacl.secretbox.open(hexToBytes(msg.data),hexToBytes(msg.nonce),sharedKey);
-          if(!pt)return;
-          let inner;try{inner=JSON.parse(new TextDecoder().decode(pt))}catch{return}
+          if(!pt){dbg('decrypt FAILED (wrong key/nonce)');return;}
+          let inner;try{inner=JSON.parse(new TextDecoder().decode(pt))}catch{dbg('inner JSON parse failed');return}
+          dbg('decrypted inner:',inner.type);
           if(inner.type==='presentation') showResult(inner.vp);
         } else if(msg.type==='peer-gone'){
           setStatus('El escritorio se desconectó.');
         }
       };
-      ws.onerror=()=>setStatus('Error de conexión con el relay.');
-      ws.onclose=(ev)=>{ if(ev.code===4003) fail('Sesión ocupada.'); };
+      ws.onerror=()=>{dbg('WS error');setStatus('Error de conexión con el relay.')};
+      ws.onclose=(ev)=>{ dbg('WS close code='+ev.code+' reason='+(ev.reason||'')); if(ev.code===4003) fail('Sesión ocupada.'); };
     }
     connect();
   </script>
